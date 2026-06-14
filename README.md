@@ -7,6 +7,11 @@ and every section exactly as the original — then *verify* it.**
 
 A free, open-source, fully-offline macOS app by [Filaxy Labs](https://filaxylabs.co).
 
+[![CI](https://github.com/othmarodev/filaxy-pdf-converter/actions/workflows/ci.yml/badge.svg)](https://github.com/othmarodev/filaxy-pdf-converter/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey)
+![Swift](https://img.shields.io/badge/Swift-5.9%2B-orange)
+
 </div>
 
 ---
