@@ -1,0 +1,28 @@
+# Swift / SwiftPM
+.build/
+*.xcodeproj
+.swiftpm/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Build artifacts
+/dist/
+/build/
+*.spec
+*.app
+*.dmg
+
+# Local conversion outputs / scratch
+/out/
+/samples/*.docx
+
+# Personal test documents — NEVER commit (private data: salary, ID, address)
+/samples/*.pdf
+/tests/fixtures/
+
+# macOS
+.DS_Store
