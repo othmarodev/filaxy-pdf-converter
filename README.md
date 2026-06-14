@@ -33,6 +33,26 @@ silently drifted. This app does two things that matter:
 That verification step is the reason the project exists: a salary certificate, an
 invoice or a contract is worthless if a single figure converts wrong.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/verification-dark.png" width="760" alt="Fidelity report after a conversion">
+</p>
+
+After every conversion you get a **fidelity report** — text recall, sensitive-data
+drift, font renderability and preserved graphics — so the file is one you can trust.
+
+<p align="center">
+  <img src="docs/screenshots/verification-light.png" width="390" alt="Light theme (English)">
+  <img src="docs/screenshots/verification-es.png" width="390" alt="Spanish — live localization">
+</p>
+
+Light & dark themes and **live ES / EN** localization — switch anytime.
+
+<p align="center">
+  <img src="docs/screenshots/how-it-works.png" width="560" alt="How it works panel">
+</p>
+
 ## How it works
 
 ```
