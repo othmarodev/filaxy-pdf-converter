@@ -26,3 +26,8 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# x86_64 (Intel) build artifacts
+.venv-x86/
+dist-x86/
+build-x86/

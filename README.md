@@ -30,9 +30,9 @@ brew install --cask othmarodev/filaxy/filaxy-pdf-converter
 
 ### Direct download
 
-**[Download the latest release →](https://github.com/othmarodev/filaxy-pdf-converter/releases/latest)** — Apple-notarized `.dmg`. Open it and drag **Filaxy PDF Converter** into **Applications**. It launches with no Gatekeeper warnings (signed with a Developer ID + notarized by Apple).
+**[Download the latest release →](https://github.com/othmarodev/filaxy-pdf-converter/releases/latest)** — Apple-notarized `.dmg` (pick **arm64** for Apple Silicon or **x86_64** for Intel). Open it and drag **Filaxy PDF Converter** into **Applications**. It launches with no Gatekeeper warnings (signed with a Developer ID + notarized by Apple).
 
-**Requirements:** macOS 13 (Ventura)+ · Apple Silicon (arm64).
+**Requirements:** macOS 13 (Ventura)+ · Apple Silicon **or** Intel.
 
 ## Why it exists
 
@@ -145,7 +145,7 @@ tools/freeze_engine.sh
 - [x] Developer ID signed + notarized DMG ([download](https://github.com/othmarodev/filaxy-pdf-converter/releases/latest))
 - [x] Homebrew tap (`brew install --cask othmarodev/filaxy/filaxy-pdf-converter`)
 - [ ] Landing on [filaxy.shop](https://filaxy.shop)
-- [ ] Universal build (Intel + Apple Silicon)
+- [x] Intel + Apple Silicon builds (per-arch notarized DMGs, arch-aware Homebrew cask)
 - [ ] App Store release (sandboxed)
 
 ## Support the project

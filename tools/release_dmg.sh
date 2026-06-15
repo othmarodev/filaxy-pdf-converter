@@ -10,12 +10,17 @@
 set -e
 cd "$(dirname "$0")/.."
 
-APP_SRC=".build/Filaxy PDF Converter.app"
+# Target architecture (arm64 default; ARCH=x86_64 for the Intel build).
+ARCH="${ARCH:-arm64}"
+VERSION="${VERSION:-1.0}"
+ATAG=""
+[ "$ARCH" != "arm64" ] && ATAG=" (${ARCH})"
+APP_SRC=".build/Filaxy PDF Converter${ATAG}.app"
 # Developer ID signing identity (appears publicly in any notarized binary's
 # signature, so it's not a secret). Override with FILAXY_SIGN_IDENTITY if needed.
 IDENTITY="${FILAXY_SIGN_IDENTITY:-Developer ID Application: Othmaro Fallas Rojas (J3YC73HASU)}"
 ENT="$(pwd)/tools/engine-entitlements.plist"
-DMG="dist/Filaxy PDF Converter.dmg"
+DMG="dist/Filaxy-PDF-Converter-${VERSION}-${ARCH}.dmg"
 NOTARY_PROFILE="filaxy-notary"
 
 [ -d "$APP_SRC" ] || { echo "✗ No existe '$APP_SRC'. Corré primero: ./build-app.sh direct"; exit 1; }
