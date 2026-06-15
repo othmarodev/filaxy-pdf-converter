@@ -12,9 +12,22 @@ A free, open-source, fully-offline macOS app by [Filaxy Labs](https://filaxylabs
 ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey)
 ![Swift](https://img.shields.io/badge/Swift-5.9%2B-orange)
 
+### [⬇ Download Filaxy PDF Converter](https://github.com/othmarodev/filaxy-pdf-converter/releases/latest)
+
+Signed &amp; notarized `.dmg` — opens with no Gatekeeper warnings.
+
 </div>
 
 ---
+
+## Download
+
+**[Download the latest release →](https://github.com/othmarodev/filaxy-pdf-converter/releases/latest)** — Apple-notarized `.dmg`.
+
+1. Open the `.dmg` and drag **Filaxy PDF Converter** into **Applications**.
+2. Launch it — no security warnings (signed with a Developer ID + notarized by Apple).
+
+**Requirements:** macOS 13 (Ventura)+ · Apple Silicon (arm64).
 
 ## Why it exists
 
@@ -124,7 +137,9 @@ tools/freeze_engine.sh
 - [x] Self-contained frozen engine (PyInstaller) — no Python at runtime
 - [x] Two build variants (App Store / filaxy.shop)
 - [ ] Free OCR fallback (Tesseract) for scanned PDFs
-- [ ] Developer ID signed + notarized DMG → [filaxy.shop](https://filaxy.shop)
+- [x] Developer ID signed + notarized DMG ([download](https://github.com/othmarodev/filaxy-pdf-converter/releases/latest))
+- [ ] Homebrew cask · landing on [filaxy.shop](https://filaxy.shop)
+- [ ] Universal build (Intel + Apple Silicon)
 - [ ] App Store release (sandboxed)
 
 ## Support the project
