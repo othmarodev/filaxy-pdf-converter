@@ -26,10 +26,14 @@ echo "→ 0/4  Copiando a /tmp (fuera de iCloud) y limpiando extended attributes
 cp -R "$APP_SRC" "$APP"
 xattr -cr "$APP"
 
-echo "→ 1/4  Firmando binarios internos (dylibs/.so) — Developer ID + hardened runtime…"
-find "$APP" -type f \( -name "*.dylib" -o -name "*.so" \) -print0 \
+echo "→ 1/4  Firmando TODOS los Mach-O internos (dylibs/.so/frameworks/ejecutables)…"
+# Detect Mach-O by content, not extension — otherwise framework binaries like
+# Python3.framework/.../Python3 (no extension) stay unsigned and notarization fails.
+find "$APP" -type f -print0 \
   | while IFS= read -r -d '' f; do
-      codesign --force --timestamp --options runtime -s "$IDENTITY" "$f"
+      if file -b "$f" | grep -q "Mach-O"; then
+        codesign --force --timestamp --options runtime -s "$IDENTITY" "$f"
+      fi
     done
 
 echo "→ 2/4  Firmando el motor Python (con entitlements) y sellando la app…"
