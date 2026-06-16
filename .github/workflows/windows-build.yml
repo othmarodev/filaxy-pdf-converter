@@ -1,0 +1,52 @@
+name: Windows build
+
+# Builds the cross-platform Qt app (qt/filaxy_qt.py) into a Windows .exe with
+# PyInstaller, on a Windows runner. Trigger manually (Actions tab / gh workflow
+# run) or automatically on a version tag. The result is uploaded as an artifact.
+on:
+  workflow_dispatch:
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install PySide6 PyMuPDF==1.23.26 Pillow fonttools pyinstaller
+
+      - name: Generate Windows app icon (.ico)
+        run: python -c "from PIL import Image; Image.open('Sources/FilaxyPDFConverter/Resources/AppIconImage.png').resize((256,256)).save('app.ico')"
+
+      - name: Build with PyInstaller
+        run: >
+          pyinstaller --noconfirm --clean --onedir --windowed
+          --name "Filaxy PDF Converter"
+          --icon app.ico
+          --paths .
+          --collect-submodules engine
+          --collect-all PySide6
+          --collect-all fitz
+          --collect-all PIL
+          --collect-all fontTools
+          --exclude-module pdf2docx
+          --exclude-module tkinter
+          --exclude-module matplotlib
+          qt/filaxy_qt.py
+
+      - name: Zip the app
+        run: Compress-Archive -Path "dist/Filaxy PDF Converter/*" -DestinationPath "Filaxy-PDF-Converter-Windows.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Filaxy-PDF-Converter-Windows
+          path: Filaxy-PDF-Converter-Windows.zip
+          if-no-files-found: error

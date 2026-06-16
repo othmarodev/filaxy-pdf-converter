@@ -19,6 +19,7 @@ import html
 import io
 import os
 import re
+import sys
 import zipfile
 
 import fitz  # PyMuPDF
@@ -102,30 +103,46 @@ def _is_standard_font(base: str) -> bool:
     return any(k in low for k in _STANDARD_FONTS)
 
 
-_SYS_FONT_DIR = "/System/Library/Fonts/Supplemental"
-
-
 def _system_font_bytes(basefont: str) -> bytes | None:
     """Bytes of the INSTALLED system font matching `basefont` (same family +
     weight/slant). Used to embed a reliable, Unicode-cmap font when the PDF's own
     subset can't be used — so the DOCX renders identically on any Word WITHOUT
-    depending on Word's (sometimes corrupt) font cache for system fonts."""
+    depending on Word's (sometimes corrupt) font cache for system fonts.
+
+    Cross-platform: macOS (`/System/Library/Fonts/...`, "Arial Bold.ttf") and
+    Windows (`C:\\Windows\\Fonts`, "arialbd.ttf"). Linux falls through to
+    substitution (no guaranteed Arial)."""
     low = _basename(basefont).lower()
     bold = any(k in low for k in ("bold", "black", "heavy", "semibold"))
     ital = any(k in low for k in ("italic", "oblique"))
-    if "times" in low:       fam = "Times New Roman"
-    elif "courier" in low:   fam = "Courier New"
-    elif "georgia" in low:   fam = "Georgia"
-    elif "verdana" in low:   fam = "Verdana"
-    elif "tahoma" in low:    fam = "Tahoma"
-    else:                    fam = "Arial"   # arial, helvetica, unknown → Arial
-    if fam == "Arial" and "black" in low:
-        names = ["Arial Black.ttf"]
-    else:
-        sfx = " Bold Italic" if (bold and ital) else " Bold" if bold else " Italic" if ital else ""
-        names = [f"{fam}{sfx}.ttf", f"{fam}.ttf"]
-    for n in names:
-        p = os.path.join(_SYS_FONT_DIR, n)
+    black = "black" in low
+    if "times" in low:       fam_mac, fam_win = "Times New Roman", "times"
+    elif "courier" in low:   fam_mac, fam_win = "Courier New", "cour"
+    elif "georgia" in low:   fam_mac, fam_win = "Georgia", "georgia"
+    elif "verdana" in low:   fam_mac, fam_win = "Verdana", "verdana"
+    elif "tahoma" in low:    fam_mac, fam_win = "Tahoma", "tahoma"
+    else:                    fam_mac, fam_win = "Arial", "arial"  # arial/helvetica/unknown
+
+    candidates: list[str] = []
+    if sys.platform == "darwin":
+        d = "/System/Library/Fonts/Supplemental"
+        if fam_mac == "Arial" and black:
+            names = ["Arial Black.ttf"]
+        else:
+            sfx = " Bold Italic" if (bold and ital) else " Bold" if bold else " Italic" if ital else ""
+            names = [f"{fam_mac}{sfx}.ttf", f"{fam_mac}.ttf"]
+        candidates = [os.path.join(d, n) for n in names]
+    elif sys.platform.startswith("win"):
+        d = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
+        if fam_win == "arial" and black:
+            names = ["ariblk.ttf"]
+        else:
+            # Windows suffix convention: bd=bold, i=italic, bi=bold+italic.
+            sfx = "bi" if (bold and ital) else "bd" if bold else "i" if ital else ""
+            names = [f"{fam_win}{sfx}.ttf", f"{fam_win}b.ttf" if bold else "", f"{fam_win}.ttf"]
+        candidates = [os.path.join(d, n) for n in names if n]
+
+    for p in candidates:
         if os.path.exists(p):
             try:
                 with open(p, "rb") as f:
