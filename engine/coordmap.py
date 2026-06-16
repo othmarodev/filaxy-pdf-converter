@@ -153,15 +153,53 @@ def _has_unicode_cmap(font_bytes: bytes) -> bool:
     return False
 
 
+def _font_internal_name(font_bytes: bytes) -> str | None:
+    """The font's OWN family name (typographic family / name ID 16, else 1). Word
+    registers an embedded font under THIS name and matches runs against it; if the
+    <w:font w:name> we declare differs, Word can't resolve the run → □ tofu. So the
+    declared family MUST equal the embedded font's internal name."""
+    try:
+        from fontTools.ttLib import TTFont
+        f = TTFont(io.BytesIO(font_bytes), fontNumber=0, lazy=True)
+        for nid in (16, 1):
+            n = f["name"].getDebugName(nid)
+            if n and n.strip():
+                return n.strip()
+    except Exception:
+        return None
+    return None
+
+
+def _weight_of(basefont: str) -> tuple:
+    low = _basename(basefont).lower()
+    bold = any(k in low for k in ("bold", "black", "heavy", "semibold"))
+    ital = any(k in low for k in ("italic", "oblique"))
+    return bold, ital
+
+
+def _weight_key(bold: bool, ital: bool) -> str:
+    return ("BoldItalic" if bold and ital else "Bold" if bold
+            else "Italic" if ital else "Regular")
+
+
 def _build_font_registry(doc):
-    """Scan every font in the PDF; for each, decide whether to EMBED it (bespoke
-    fonts not installed anywhere) or reference the SYSTEM font (standard fonts
-    Word already has). Returns (reg, embedded):
-      reg      : basefont-name -> {"family": <DOCX font name>, "embedded": bool}
-      embedded : family-name   -> (fontKey, obfuscated_bytes)
-    """
+    """Scan every font in the PDF and decide how each is carried into the DOCX.
+    Returns (reg, embedded):
+      reg      : basefont-name -> {"family", "embedded", "bold", "ital"}
+      embedded : family-name   -> {weightKey: (fontKey, obf_bytes, subsetted)}
+
+    Embedded fonts are grouped as OOXML weight VARIANTS of ONE family
+    (embedRegular/Bold/Italic/BoldItalic), declared under the font's REAL family
+    name and referenced by runs as that name + <w:b>/<w:i>. This is the only shape
+    that renders in MS Word: Word matches the run's font name to the embedded
+    font's INTERNAL name. The old code declared each weight under a mangled name
+    (ArialMT, Helvetica) whose embedded bytes were internally 'Arial' — a mismatch
+    Word rejects with □ tofu. Standard fonts (no usable embedded subset, or base-14
+    like Helvetica) embed the matching SYSTEM font (full, has a Unicode cmap) under
+    its real name ('Arial', 'Times New Roman'…) so the text is never invisible and
+    never garbled."""
     reg: dict[str, dict] = {}
-    embedded: dict[str, tuple] = {}
+    embedded: dict[str, dict] = {}
     seen: set[int] = set()
     for pno in range(len(doc)):
         for f in doc.get_page_fonts(pno):
@@ -179,49 +217,42 @@ def _build_font_registry(doc):
                     buf = info[3] or b""
             except Exception:
                 buf = b""
+            bold, ital = _weight_of(basefont)
+            wk = _weight_key(bold, ital)
             if len(buf) > 200 and _has_unicode_cmap(buf):
-                # The PDF's own font is usable → embed it (exact original glyphs).
-                family = base
-                if family not in embedded:
-                    embedded[family] = _obfuscate(buf)
-                reg[base] = {"family": family, "embedded": True}
-            elif len(buf) > 200:
-                # The PDF embeds this font but its subset has NO Unicode cmap, so
-                # Word can't map characters to glyphs → the text VANISHES (only
-                # bold survived, via the system fallback). Embed the matching
-                # SYSTEM font instead (same family, full Unicode cmap) so the docx
-                # renders reliably on any Word, independent of its font cache.
-                sysbuf = _system_font_bytes(basefont)
-                if sysbuf and _has_unicode_cmap(sysbuf):
-                    if base not in embedded:
-                        embedded[base] = _obfuscate(sysbuf)
-                    reg[base] = {"family": base, "embedded": True}
-                else:
-                    reg[base] = {"family": _clean_font(basefont), "embedded": False}
+                # PDF's own font is usable → embed it (exact glyphs) under its real
+                # internal family name. It's a subset → subsetted=True.
+                family = _font_internal_name(buf) or _clean_font(basefont)
+                key, ob = _obfuscate(buf)
+                embedded.setdefault(family, {}).setdefault(wk, (key, ob, True))
+                reg[base] = {"family": family, "embedded": True,
+                             "bold": bold, "ital": ital}
             else:
-                # Base-14 / no embeddable bytes (e.g. Helvetica). Referencing the
-                # system font by NAME hits Word's font-cache bug that silently
-                # drops regular-weight Arial → the data text becomes INVISIBLE in
-                # Word (only bold headers survive). Embed the matching SYSTEM font
-                # so Word always renders it; fall back to by-name only if none.
+                # No usable embedded font (subset without Unicode cmap, or base-14
+                # with no bytes). Embed the matching SYSTEM font under its STANDARD
+                # family name as a weight variant — full font → subsetted=False.
                 sysbuf = _system_font_bytes(basefont)
                 if sysbuf and _has_unicode_cmap(sysbuf):
-                    if base not in embedded:
-                        embedded[base] = _obfuscate(sysbuf)
-                    reg[base] = {"family": base, "embedded": True}
+                    family = _clean_font(basefont)   # "Arial", "Times New Roman"…
+                    key, ob = _obfuscate(sysbuf)
+                    embedded.setdefault(family, {}).setdefault(wk, (key, ob, False))
+                    reg[base] = {"family": family, "embedded": True,
+                                 "bold": bold, "ital": ital}
                 else:
                     reg[base] = {"family": _clean_font(basefont), "embedded": False}
     return reg, embedded
 
 
 def _span_style(span: dict, font_reg: dict) -> tuple:
-    """(family, embedded, bold, ital). When the original font is embedded the
-    weight/slant are baked into the font itself (each PDF font is its own family),
-    so we don't also emit <w:b>/<w:i> — that would synthesise a fake bold on top."""
+    """(family, embedded, bold, ital). Embedded fonts are weight VARIANTS of a
+    named family, so we emit <w:b>/<w:i> matching the variant: Word selects the
+    embedded Bold/Italic glyphs (the variant exists, so no fake synthesis), and
+    viewers that ignore embedded fonts synthesise the weight from the same-named
+    system font instead of garbling."""
     raw = span["font"]
     entry = font_reg.get(_basename(raw)) if font_reg else None
     if entry and entry["embedded"]:
-        return entry["family"], True, False, False
+        return entry["family"], True, entry.get("bold", False), entry.get("ital", False)
     family = entry["family"] if entry else _clean_font(raw)
     flags = span["flags"]
     bold = bool(flags & 16) or "Bold" in raw or "Black" in raw or "Semibold" in raw
@@ -471,19 +502,30 @@ def convert(pdf_path: str, out_path: str) -> None:
 
 def _write_docx(out_path: str, document_xml: str, media: dict, rels: list,
                 embedded_fonts: dict) -> None:
-    # --- embedded fonts: one obfuscated part + fontTable entry per family ------
+    # --- embedded fonts: ONE fontTable entry per family, an embed element per
+    # weight VARIANT (Regular/Bold/Italic/BoldItalic), one obfuscated part each.
+    # Declaring the family under its REAL name + correct w:subsetted is what makes
+    # the file render in MS Word (and beyond). ------------------------------
+    EMBED_EL = {"Regular": "embedRegular", "Bold": "embedBold",
+                "Italic": "embedItalic", "BoldItalic": "embedBoldItalic"}
     font_files: dict[str, bytes] = {}     # part name -> obfuscated bytes
     font_entries, font_rels = [], []
-    for i, (family, (font_key, ob)) in enumerate(sorted(embedded_fonts.items()), 1):
-        part = f"fonts/font{i}.odttf"
-        rid = f"rIdFont{i}"
-        font_files[f"word/{part}"] = ob
-        font_rels.append(f'<Relationship Id="{rid}" '
-                         f'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" '
-                         f'Target="{part}"/>')
+    n = 0
+    for family, weights in sorted(embedded_fonts.items()):
+        embeds = ""
+        for wk, (font_key, ob, subsetted) in sorted(weights.items()):
+            n += 1
+            part = f"fonts/font{n}.odttf"
+            rid = f"rIdFont{n}"
+            font_files[f"word/{part}"] = ob
+            font_rels.append(f'<Relationship Id="{rid}" '
+                             f'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" '
+                             f'Target="{part}"/>')
+            el = EMBED_EL.get(wk, "embedRegular")
+            embeds += (f'<w:{el} r:id="{rid}" w:fontKey="{font_key}" '
+                       f'w:subsetted="{1 if subsetted else 0}"/>')
         fa = html.escape(family, quote=True)
-        font_entries.append(f'<w:font w:name="{fa}"><w:embedRegular r:id="{rid}" '
-                            f'w:fontKey="{font_key}" w:subsetted="1"/></w:font>')
+        font_entries.append(f'<w:font w:name="{fa}">{embeds}</w:font>')
     has_fonts = bool(embedded_fonts)
 
     content_types = (
