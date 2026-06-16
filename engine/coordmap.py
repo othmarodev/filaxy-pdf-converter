@@ -233,7 +233,11 @@ def _build_font_registry(doc):
                 # family name as a weight variant — full font → subsetted=False.
                 sysbuf = _system_font_bytes(basefont)
                 if sysbuf and _has_unicode_cmap(sysbuf):
-                    family = _clean_font(basefont)   # "Arial", "Times New Roman"…
+                    # Declare the family under the embedded font's OWN internal name
+                    # (e.g. Tahoma → "Tahoma", not the "Arial" fallback) so the
+                    # declared name ALWAYS matches the embedded bytes — otherwise
+                    # Word can't resolve it and shows □ tofu.
+                    family = _font_internal_name(sysbuf) or _clean_font(basefont)
                     key, ob = _obfuscate(sysbuf)
                     embedded.setdefault(family, {}).setdefault(wk, (key, ob, False))
                     reg[base] = {"family": family, "embedded": True,
