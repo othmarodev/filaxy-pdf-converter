@@ -1,8 +1,7 @@
 # Filaxy PDF Converter — engine dependencies (free / open source)
-# The coordinate-mapping engine (coordmap.py) needs only these:
-#   PyMuPDF  — PDF parsing + rasterisation (pinned: 1.23.26 is the validated line)
-#   Pillow   — image handling for the page-background layer
-#   fonttools — read/obfuscate fonts for embedding into the .docx (ECMA-376)
+# NOTE: PyMuPDF is pinned. Newer releases removed Rect.get_area(), which
+# pdf2docx still calls; 1.23.26 is the last fully-compatible line.
+pdf2docx==0.5.8
 PyMuPDF==1.23.26
+python-docx==1.2.0
 Pillow>=10.0
-fonttools>=4.0

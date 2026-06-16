@@ -9,14 +9,7 @@ cd "$(dirname "$0")"
 APP_NAME="FilaxyPDFConverter"
 DISPLAY_NAME="Filaxy PDF Converter"
 BUNDLE_ID="app.filaxy.PDFConverter"
-
-# ---- target architecture (arm64 default; set ARCH=x86_64 for an Intel build) --
-ARCH="${ARCH:-arm64}"
-EXEC=".build/${ARCH}-apple-macosx/debug/${APP_NAME}"
-ARCH_TAG=""
-[ "$ARCH" != "arm64" ] && ARCH_TAG=" (${ARCH})"
-ENGINE_DIST="dist/filaxy-engine"
-[ "$ARCH" = "x86_64" ] && ENGINE_DIST="dist-x86/filaxy-engine"
+EXEC=".build/arm64-apple-macosx/debug/${APP_NAME}"
 
 # ---- build variant -----------------------------------------------------------
 #   direct   (default) → filaxy.shop: donations (PayPal + USDT) + Finder Quick Action
@@ -30,15 +23,15 @@ case "$VARIANT" in
             echo "→ Variant: APP STORE (no donations / no Quick Action)";;
   *) echo "unknown variant '$VARIANT' — use: direct | appstore"; exit 1;;
 esac
-STAGE="/tmp/filaxy-pdfconv-${VARIANT}-${ARCH}/${DISPLAY_NAME}.app"
-LOCAL_OUT=".build/${DISPLAY_NAME}${VARIANT_TAG}${ARCH_TAG}.app"
+STAGE="/tmp/filaxy-pdfconv-${VARIANT}/${DISPLAY_NAME}.app"
+LOCAL_OUT=".build/${DISPLAY_NAME}${VARIANT_TAG}.app"
 
 echo "→ Engine regression guard (fidelity invariants)…"
 PY=".venv/bin/python"; [ -x "$PY" ] || PY="python3"
 "$PY" tests/regression.py   # aborts the build (set -e) if a fidelity fix regressed
 
-echo "→ Compiling… (arch: $ARCH)"
-swift build --arch "$ARCH" $SWIFT_FLAGS
+echo "→ Compiling…"
+swift build $SWIFT_FLAGS
 
 echo "→ Wrapping into .app bundle (staged in /tmp)…"
 rm -rf "$STAGE"
@@ -60,9 +53,9 @@ fi
 # with no Python/venv and is distributable. Fall back to the Python sources for
 # dev (the app then resolves the project venv).
 mkdir -p "$STAGE/Contents/Resources/engine"
-if [ -x "${ENGINE_DIST}/filaxy-engine" ]; then
-  echo "   • bundling FROZEN engine (self-contained, ${ARCH})…"
-  cp -R "${ENGINE_DIST}/." "$STAGE/Contents/Resources/engine/"
+if [ -x "dist/filaxy-engine/filaxy-engine" ]; then
+  echo "   • bundling FROZEN engine (self-contained)…"
+  cp -R dist/filaxy-engine/. "$STAGE/Contents/Resources/engine/"
 else
   echo "   • bundling dev engine sources (falls back to venv) — run tools/freeze_engine.sh for a self-contained build"
   cp engine/*.py "$STAGE/Contents/Resources/engine/"
