@@ -199,9 +199,18 @@ def _build_font_registry(doc):
                 else:
                     reg[base] = {"family": _clean_font(basefont), "embedded": False}
             else:
-                # Base-14 / no embeddable bytes → reference the system font by name
-                # + scale-to-fit (substitution).
-                reg[base] = {"family": _clean_font(basefont), "embedded": False}
+                # Base-14 / no embeddable bytes (e.g. Helvetica). Referencing the
+                # system font by NAME hits Word's font-cache bug that silently
+                # drops regular-weight Arial → the data text becomes INVISIBLE in
+                # Word (only bold headers survive). Embed the matching SYSTEM font
+                # so Word always renders it; fall back to by-name only if none.
+                sysbuf = _system_font_bytes(basefont)
+                if sysbuf and _has_unicode_cmap(sysbuf):
+                    if base not in embedded:
+                        embedded[base] = _obfuscate(sysbuf)
+                    reg[base] = {"family": base, "embedded": True}
+                else:
+                    reg[base] = {"family": _clean_font(basefont), "embedded": False}
     return reg, embedded
 
 
