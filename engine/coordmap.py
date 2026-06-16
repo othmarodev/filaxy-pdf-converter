@@ -219,18 +219,23 @@ def _build_font_registry(doc):
                 buf = b""
             bold, ital = _weight_of(basefont)
             wk = _weight_key(bold, ital)
-            if len(buf) > 200 and _has_unicode_cmap(buf):
-                # PDF's own font is usable → embed it (exact glyphs) under its real
-                # internal family name. It's a subset → subsetted=True.
+            if len(buf) > 200 and _has_unicode_cmap(buf) and not _is_standard_font(base):
+                # BESPOKE font (not installed on any machine) → embed the PDF's own
+                # glyphs under its real internal family name. It's a subset →
+                # subsetted=True. We do NOT do this for standard fonts (Arial,
+                # Times…): their PDF subset often ships a re-encoded cmap that Word
+                # can't map, so the text renders blank (the factura's regular Arial
+                # subset was invisible while its bold subset happened to render).
+                # Standard fonts always use the full, reliable SYSTEM font below.
                 family = _font_internal_name(buf) or _clean_font(basefont)
                 key, ob = _obfuscate(buf)
                 embedded.setdefault(family, {}).setdefault(wk, (key, ob, True))
                 reg[base] = {"family": family, "embedded": True,
                              "bold": bold, "ital": ital}
             else:
-                # No usable embedded font (subset without Unicode cmap, or base-14
-                # with no bytes). Embed the matching SYSTEM font under its STANDARD
-                # family name as a weight variant — full font → subsetted=False.
+                # Standard font (Arial/Times/…), or a subset without a usable Unicode
+                # cmap, or base-14 with no bytes. Embed the matching SYSTEM font under
+                # its real family name as a weight variant — full font → subsetted=False.
                 sysbuf = _system_font_bytes(basefont)
                 if sysbuf and _has_unicode_cmap(sysbuf):
                     # Declare the family under the embedded font's OWN internal name
