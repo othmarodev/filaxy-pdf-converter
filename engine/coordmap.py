@@ -231,7 +231,7 @@ def _build_font_registry(doc):
                 key, ob = _obfuscate(buf)
                 embedded.setdefault(family, {}).setdefault(wk, (key, ob, True))
                 reg[base] = {"family": family, "embedded": True,
-                             "bold": bold, "ital": ital}
+                             "bold": bold, "ital": ital, "subst": False}
             else:
                 # Standard font (Arial/Times/…), or a subset without a usable Unicode
                 # cmap, or base-14 with no bytes. Embed the matching SYSTEM font under
@@ -246,7 +246,7 @@ def _build_font_registry(doc):
                     key, ob = _obfuscate(sysbuf)
                     embedded.setdefault(family, {}).setdefault(wk, (key, ob, False))
                     reg[base] = {"family": family, "embedded": True,
-                                 "bold": bold, "ital": ital}
+                                 "bold": bold, "ital": ital, "subst": True}
                 else:
                     reg[base] = {"family": _clean_font(basefont), "embedded": False}
     return reg, embedded
@@ -325,8 +325,12 @@ def _line_para(line: dict, mat, font_reg: dict, align: str = "center") -> str:
     if not spans:
         return ""
     target = x1 - x0
-    all_embedded = all((font_reg.get(_basename(s["font"])) or {}).get("embedded")
-                       for s in spans)
+    entries = [font_reg.get(_basename(s["font"])) or {} for s in spans]
+    all_embedded = all(e.get("embedded") for e in entries)
+    # "exact" = the PDF's OWN font is embedded (metrics match the source). A
+    # SYSTEM substitute is embedded too, but its metrics differ, so it still needs
+    # fitting or the framed line overflows and wraps onto itself.
+    all_exact = all_embedded and not any(e.get("subst") for e in entries)
     char_space = 0.0
     if align == "justify":
         # fill the footprint by spreading the slack across the characters
@@ -336,9 +340,16 @@ def _line_para(line: dict, mat, font_reg: dict, align: str = "center") -> str:
         nchars = sum(len(s["text"]) for s in spans) or 1
         if target - measured > 0:
             char_space = (target - measured) / nchars
-    elif all_embedded:
+    elif all_exact:
         # embedded original font → exact glyphs, no scaling needed
         scale = 1.0
+    elif all_embedded:
+        # embedded SYSTEM substitute → compress horizontally only if it's WIDER
+        # than the source footprint (never expand — that would distort lines that
+        # already fit, like the verified invoice/statement). Prevents the wrap.
+        measured = sum(_measure(s["text"], s["size"], *_span_style(s, font_reg)[2:])
+                       for s in spans)
+        scale = min(1.0, (target / measured) * 0.985) if measured > 1.0 else 1.0
     else:
         measured = sum(_measure(s["text"], s["size"], *_span_style(s, font_reg)[2:])
                        for s in spans)
