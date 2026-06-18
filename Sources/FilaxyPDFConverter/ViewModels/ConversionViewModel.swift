@@ -139,12 +139,8 @@ final class ConversionViewModel: ObservableObject {
         panel.title = settings.t(.savePanelTitle)
         panel.message = settings.t(.batchFolderMessage)
         panel.prompt = settings.t(.savePanelPrompt)
-        if !settings.lastSaveFolder.isEmpty {
-            let dir = URL(fileURLWithPath: settings.lastSaveFolder)
-            if FileManager.default.fileExists(atPath: dir.path) { panel.directoryURL = dir }
-        }
+        panel.directoryURL = Self.downloadsFolder   // default ALWAYS to Downloads
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        settings.lastSaveFolder = url.path
         return url
     }
 
@@ -156,13 +152,14 @@ final class ConversionViewModel: ObservableObject {
         panel.nameFieldStringValue = pdf.deletingPathExtension().lastPathComponent + ".docx"
         panel.allowedContentTypes = [UTType(filenameExtension: "docx") ?? .data]
         panel.canCreateDirectories = true
-        if !settings.lastSaveFolder.isEmpty {
-            let dir = URL(fileURLWithPath: settings.lastSaveFolder)
-            if FileManager.default.fileExists(atPath: dir.path) { panel.directoryURL = dir }
-        }
+        panel.directoryURL = Self.downloadsFolder   // default ALWAYS to Downloads
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        settings.lastSaveFolder = url.deletingLastPathComponent().path
         return url
+    }
+
+    /// The user's Downloads folder — the default save location for every export.
+    static var downloadsFolder: URL? {
+        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
     }
 
     func reset() {
