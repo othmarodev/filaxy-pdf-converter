@@ -40,6 +40,52 @@ def _probe(src: str) -> tuple[int, bool, list]:
     return pages, total_chars > 0, scanned
 
 
+def _font_substitutions(src: str, out: str) -> list:
+    """Informational: bespoke/decorative source fonts that were NOT carried into
+    the .docx under their own name (they were replaced by a standard font, so
+    their look changed — e.g. a Mistral signature → Arial). Computed by comparing
+    the PDF's fonts to the families present in the produced docx; does NOT touch
+    or alter the conversion."""
+    import re
+    import zipfile
+    from .coordmap import _is_standard_font, _basename
+    fams: set[str] = set()
+    try:
+        with zipfile.ZipFile(out) as z:
+            for part in ("word/fontTable.xml", "word/document.xml"):
+                try:
+                    xml = z.read(part).decode("utf-8", "ignore")
+                except KeyError:
+                    continue
+                fams |= {m.lower() for m in
+                         re.findall(r'w:(?:font w:name|ascii)="([^"]+)"', xml)}
+    except Exception:
+        return []
+
+    def core(name: str) -> str:
+        n = _basename(name).split(",")[0]
+        n = re.sub(r'[-\s]?(bold|italic|oblique|regular|black|light|medium|semibold)',
+                   '', n, flags=re.I)
+        return re.sub(r'(mt|ps|psmt)$', '', n, flags=re.I).lower().strip()
+
+    doc = fitz.open(src)
+    subs: list[str] = []
+    seen: set[str] = set()
+    for pno in range(len(doc)):
+        for f in doc.get_page_fonts(pno):
+            base = _basename(f[3])
+            if _is_standard_font(base):
+                continue                      # Arial/Times/etc. — no visible change
+            c = core(base)
+            if not c or c in seen:
+                continue
+            if not any(c in d or d in c for d in fams if d):
+                seen.add(c)
+                subs.append(base.split(",")[0])
+    doc.close()
+    return sorted(subs)
+
+
 def run(src: str, out: str) -> dict:
     t0 = time.perf_counter()
     pages, has_text, scanned = _probe(src)
@@ -57,6 +103,7 @@ def run(src: str, out: str) -> dict:
     coordmap_convert(src, out)
     rep = verify(src, out)
     rrep = analyze_render(out)   # re-check the PRODUCED docx: embedded fonts renderable
+    substitutions = _font_substitutions(src, out)
     elapsed = time.perf_counter() - t0
 
     # The badge is honest only if data completeness AND font renderability hold.
@@ -69,6 +116,7 @@ def run(src: str, out: str) -> dict:
         "has_text_layer": has_text,
         "scanned_pages": scanned,
         "warnings": warnings,
+        "font_substitutions": substitutions,
         "passed": overall_passed,
         "fidelity": {
             "text_score": round(rep.text_score, 2),
@@ -121,6 +169,8 @@ def main(argv: list[str]) -> int:
                 print("   •", i)
         else:
             print("Render fidelity: clean ✓ (position preserved by coordinate mapping)")
+        if result.get("font_substitutions"):
+            print("ℹ Fonts substituted (look changed):", ", ".join(result["font_substitutions"]))
         for w in result["warnings"]:
             print("⚠", w)
         print("VERDICT:", "PASS ✓" if result["passed"] else "REVIEW NEEDED ✗")

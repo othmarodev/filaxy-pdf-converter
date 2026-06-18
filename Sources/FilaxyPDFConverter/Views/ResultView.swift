@@ -38,6 +38,10 @@ struct ResultView: View {
                         issueRow(issue)
                     }
                     overlayPreview
+                    if let subs = result.fontSubstitutions, !subs.isEmpty {
+                        issueRow(settings.t(.fontsSubstituted) + " " + subs.joined(separator: ", "),
+                                 icon: "textformat")
+                    }
                     ForEach(result.warnings, id: \.self) { w in
                         issueRow(w, icon: "info.circle")
                     }

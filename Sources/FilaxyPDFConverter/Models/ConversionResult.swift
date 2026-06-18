@@ -16,12 +16,14 @@ struct ConversionResult: Codable, Identifiable, Equatable {
     let passed: Bool          // overall: data AND layout both held up
     let fidelity: Fidelity    // data fidelity (text / numbers / images)
     let layout: Layout        // structural fidelity (tables / positions)
+    let fontSubstitutions: [String]?   // bespoke fonts replaced (look changed)
 
     enum CodingKeys: String, CodingKey {
         case input, output, pages, warnings, passed, fidelity, layout
         case elapsedS = "elapsed_s"
         case hasTextLayer = "has_text_layer"
         case scannedPages = "scanned_pages"
+        case fontSubstitutions = "font_substitutions"
     }
 
     struct Fidelity: Codable, Equatable {

@@ -42,6 +42,7 @@ enum L10n {
     case showInFinder
     case openInWord
     case compareWithOriginal
+    case fontsSubstituted
     case menuConvertFolder
     case batchReady          // "%d PDFs en cola"
     case batchConvertAll     // "Convertir %d a Word"
@@ -132,6 +133,7 @@ enum L10n {
         case .showInFinder:        return es ? "Mostrar en Finder" : "Show in Finder"
         case .openInWord:          return es ? "Abrir en Word" : "Open in Word"
         case .compareWithOriginal: return es ? "Comparar con el original" : "Compare with original"
+        case .fontsSubstituted:    return es ? "Fuentes sustituidas (el aspecto puede cambiar):" : "Fonts substituted (look may change):"
         case .menuConvertFolder:   return es ? "Convertir carpeta…" : "Convert folder…"
         case .batchReady:          return es ? "%d PDFs en cola" : "%d PDFs queued"
         case .batchConvertAll:     return es ? "Convertir %d a Word" : "Convert %d to Word"
