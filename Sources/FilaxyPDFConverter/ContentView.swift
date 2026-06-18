@@ -21,6 +21,8 @@ struct ContentView: View {
                 case .working: WorkingView()
                 case .done(let r):   ResultView(result: r)
                 case .failed(let m): FailureView(message: m)
+                case .batchWorking(let d, let t): BatchWorkingView(done: d, total: t)
+                case .batchDone(let rs):          BatchResultView(results: rs)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -72,8 +74,9 @@ private struct MenuBarView: View {
         HStack(spacing: 10) {
             BarMenu(title: settings.t(.menuFile), systemImage: "doc.fill") {
                 Button(settings.t(.menuOpenPDF)) { model.pickPDF() }
+                Button(settings.t(.menuConvertFolder)) { model.pickFolder() }
                 Button(settings.t(.menuConvert)) { model.convert() }
-                    .disabled(model.droppedPDF == nil)
+                    .disabled(model.droppedPDF == nil && model.droppedPDFs.isEmpty)
                 Button(settings.t(.menuRevealOutput)) { model.revealOutput() }
                     .disabled(notDone)
             }
@@ -269,6 +272,20 @@ private struct DropZoneView: View {
     @EnvironmentObject var settings: AppSettings
     @State private var targeted = false
 
+    private var batchCount: Int { model.droppedPDFs.count }
+    private var dropTitle: String {
+        if batchCount > 1 { return String(format: settings.t(.batchReady), batchCount) }
+        return model.droppedPDF?.lastPathComponent ?? settings.t(.dropTitle)
+    }
+    private var dropSubtitle: String {
+        if batchCount > 1 { return settings.t(.dropReady) }
+        return model.droppedPDF == nil ? settings.t(.dropHintChoose) : settings.t(.dropReady)
+    }
+    private var convertLabel: String {
+        batchCount > 1 ? String(format: settings.t(.batchConvertAll), batchCount)
+                       : settings.t(.convertButton)
+    }
+
     var body: some View {
         VStack(spacing: 16) {
             RoundedRectangle(cornerRadius: 16)
@@ -286,9 +303,9 @@ private struct DropZoneView: View {
                             .foregroundStyle(targeted ? Color.accentColor : Color.secondary)
                             .scaleEffect(targeted ? 1.15 : 1.0)
                             .offset(y: targeted ? -4 : 0)
-                        Text(model.droppedPDF?.lastPathComponent ?? settings.t(.dropTitle))
+                        Text(dropTitle)
                             .font(.title3)
-                        Text(model.droppedPDF == nil ? settings.t(.dropHintChoose) : settings.t(.dropReady))
+                        Text(dropSubtitle)
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -298,18 +315,17 @@ private struct DropZoneView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { model.pickPDF() }
                 .dropDestination(for: URL.self) { urls, _ in
-                    guard let url = urls.first else { return false }
-                    model.accept(url)
+                    model.acceptMany(urls)
                     return true
                 } isTargeted: { targeted = $0 }
 
             Button(action: model.convert) {
-                Label(settings.t(.convertButton), systemImage: "wand.and.stars")
+                Label(convertLabel, systemImage: "wand.and.stars")
                     .frame(maxWidth: 260)
             }
             .controlSize(.large)
             .buttonStyle(.borderedProminent)
-            .disabled(model.droppedPDF == nil)
+            .disabled(model.droppedPDF == nil && model.droppedPDFs.isEmpty)
 
             RecentsList()
         }
@@ -374,6 +390,69 @@ private struct WorkingView: View {
             ProgressView().controlSize(.large)
             Text(settings.t(.working)).foregroundStyle(.secondary)
         }
+    }
+}
+
+private struct BatchWorkingView: View {
+    @EnvironmentObject var settings: AppSettings
+    let done: Int
+    let total: Int
+    var body: some View {
+        VStack(spacing: 14) {
+            ProgressView(value: Double(done), total: Double(max(total, 1)))
+                .frame(width: 260)
+            Text(String(format: settings.t(.batchWorking), done, total))
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct BatchResultView: View {
+    @EnvironmentObject var model: ConversionViewModel
+    @EnvironmentObject var settings: AppSettings
+    let results: [ConversionViewModel.BatchResult]
+
+    private var okCount: Int { results.filter { $0.error == nil }.count }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: okCount == results.count ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                .font(.largeTitle)
+                .foregroundStyle(okCount == results.count ? .green : .orange)
+            Text(String(format: settings.t(.batchSummary), okCount, results.count))
+                .font(.title3.weight(.semibold))
+            ScrollView {
+                VStack(spacing: 6) {
+                    ForEach(results) { r in
+                        HStack(spacing: 9) {
+                            Image(systemName: r.error != nil ? "xmark.circle.fill"
+                                  : (r.passed ? "checkmark.circle.fill" : "exclamationmark.circle.fill"))
+                                .foregroundStyle(r.error != nil ? .red : (r.passed ? .green : .orange))
+                            Text(r.name).font(.caption).lineLimit(1).truncationMode(.middle)
+                            Spacer(minLength: 8)
+                            if r.error == nil {
+                                Button { model.reveal(r.output) } label: { Image(systemName: "folder") }
+                                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                                Button { model.openInWord(r.output) } label: { Image(systemName: "arrow.up.forward.app") }
+                                    .buttonStyle(.plain).foregroundStyle(Color.accentColor)
+                            }
+                        }
+                        .padding(.horizontal, 10).padding(.vertical, 7)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+                    }
+                }
+                .padding(.horizontal, 24)
+            }
+            HStack {
+                Button(settings.t(.convertAnother)) { model.reset() }
+                Button {
+                    model.revealBatchFolder(results)
+                } label: {
+                    Label(settings.t(.batchOpenFolder), systemImage: "folder")
+                }.buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(.vertical, 20)
     }
 }
 

@@ -42,6 +42,14 @@ enum L10n {
     case showInFinder
     case openInWord
     case compareWithOriginal
+    case menuConvertFolder
+    case batchReady          // "%d PDFs en cola"
+    case batchConvertAll     // "Convertir %d a Word"
+    case batchFolderMessage
+    case batchNoPDFs
+    case batchWorking        // "Convirtiendo %d de %d…"
+    case batchSummary        // "%d de %d convertidos"
+    case batchOpenFolder
     case recentsTitle
     case recentsClear
     case pagesElapsed   // takes args, see helper below
@@ -124,6 +132,14 @@ enum L10n {
         case .showInFinder:        return es ? "Mostrar en Finder" : "Show in Finder"
         case .openInWord:          return es ? "Abrir en Word" : "Open in Word"
         case .compareWithOriginal: return es ? "Comparar con el original" : "Compare with original"
+        case .menuConvertFolder:   return es ? "Convertir carpeta…" : "Convert folder…"
+        case .batchReady:          return es ? "%d PDFs en cola" : "%d PDFs queued"
+        case .batchConvertAll:     return es ? "Convertir %d a Word" : "Convert %d to Word"
+        case .batchFolderMessage:  return es ? "Elegí la carpeta donde guardar los .docx" : "Choose the folder to save the .docx files"
+        case .batchNoPDFs:         return es ? "No hay PDFs en esa carpeta" : "No PDFs in that folder"
+        case .batchWorking:        return es ? "Convirtiendo %d de %d…" : "Converting %d of %d…"
+        case .batchSummary:        return es ? "%d de %d convertidos" : "%d of %d converted"
+        case .batchOpenFolder:     return es ? "Mostrar carpeta" : "Show folder"
         case .recentsTitle:        return es ? "Recientes" : "Recent"
         case .recentsClear:        return es ? "Limpiar" : "Clear"
         case .pagesElapsed:        return es ? "página(s)" : "page(s)"
