@@ -367,13 +367,20 @@ def _line_para(line: dict, mat, font_reg: dict, align: str = "center") -> str:
     all_exact = all_embedded and not any(e.get("subst") for e in entries)
     char_space = 0.0
     if align == "justify":
-        # fill the footprint by spreading the slack across the characters
-        scale = 1.0
         measured = sum(_measure(s["text"], s["size"], *_span_style(s, font_reg)[2:])
                        for s in spans)
         nchars = sum(len(s["text"]) for s in spans) or 1
-        if target - measured > 0:
-            char_space = (target - measured) / nchars
+        if measured > target + 1.0:
+            # the (substituted) font is WIDER than the source line → COMPRESS to
+            # fit. Otherwise the framed justified line overflows and Word wraps it
+            # onto the next line, overlapping it (Calibri→Arial body paragraphs:
+            # "…labora" landed on top of "actualmente").
+            scale = min(1.0, (target / measured) * 0.985)
+        else:
+            # text fits → keep 1:1 and spread the slack to justify the line
+            scale = 1.0
+            if target - measured > 0:
+                char_space = (target - measured) / nchars
     elif all_exact:
         # embedded original font → exact glyphs, no scaling needed
         scale = 1.0
