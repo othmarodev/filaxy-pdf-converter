@@ -245,45 +245,63 @@ def _build_font_registry(doc):
                     buf = info[3] or b""
             except Exception:
                 buf = b""
-            bold, ital = _weight_of(basefont)
-            wk = _weight_key(bold, ital)
-            if len(buf) > 200 and _has_unicode_cmap(buf) and not _is_standard_font(base):
-                # BESPOKE font (not installed on any machine) → embed the PDF's own
-                # glyphs under its real internal family name. It's a subset →
-                # subsetted=True. We do NOT do this for standard fonts (Arial,
-                # Times…): their PDF subset often ships a re-encoded cmap that Word
-                # can't map, so the text renders blank (the factura's regular Arial
-                # subset was invisible while its bold subset happened to render).
-                # Standard fonts always use the full, reliable SYSTEM font below.
-                family = _font_internal_name(buf) or _clean_font(basefont)
-                key, ob = _obfuscate(buf)
-                embedded.setdefault(family, {}).setdefault(wk, (key, ob, True))
-                reg[base] = {"family": family, "embedded": True,
-                             "bold": bold, "ital": ital, "subst": False}
-            else:
-                # Standard font (Arial/Times/…), or a subset without a usable Unicode
-                # cmap, or base-14 with no bytes. Embed the matching SYSTEM font under
-                # its real family name as a weight variant — full font → subsetted=False.
-                sysbuf = _system_font_bytes(basefont)
-                if sysbuf and _has_unicode_cmap(sysbuf):
-                    # Embed under a UNIQUE family name (canonical + " FX"), renaming
-                    # the font internally so the declared name == its internal name.
-                    # Why unique and not "Arial": Word for Mac FLICKERS (text blinks
-                    # out on zoom/scroll) when an embedded font shares its name with
-                    # an INSTALLED font (our embedded Arial vs the OS's Arial) — it
-                    # can't decide which to use. A unique name forces Word to use the
-                    # embedded copy only → stable. Glyphs are still the system font,
-                    # so it looks identical.
-                    canon = _font_internal_name(sysbuf) or _clean_font(basefont)
-                    family = canon + " FX"
-                    renamed = _rename_family(sysbuf, family, bold, ital)
-                    key, ob = _obfuscate(renamed)
-                    embedded.setdefault(family, {}).setdefault(wk, (key, ob, False))
-                    reg[base] = {"family": family, "embedded": True,
-                                 "bold": bold, "ital": ital, "subst": True}
-                else:
-                    reg[base] = {"family": _clean_font(basefont), "embedded": False}
+            _register_font(base, basefont, buf, reg, embedded)
+    # Some span fonts never appear in get_page_fonts — notably inline system fonts
+    # like macOS's ".SFNS". Left unregistered they fall back to a BY-NAME "Arial"
+    # reference, which Word can render invisibly. Scan the spans and register any
+    # missing font (no bytes → embeds the matching system font, renamed unique).
+    for pno in range(len(doc)):
+        try:
+            page = doc[pno].get_text("dict")
+        except Exception:
+            continue
+        for blk in page.get("blocks", []):
+            for ln in blk.get("lines", []):
+                for sp in ln.get("spans", []):
+                    raw = sp.get("font", "")
+                    base = _basename(raw)
+                    if base and base not in reg:
+                        _register_font(base, raw, b"", reg, embedded)
     return reg, embedded
+
+
+def _register_font(base: str, basefont: str, buf: bytes,
+                   reg: dict, embedded: dict) -> None:
+    """Decide how one font is carried into the DOCX and record it in reg/embedded.
+    EVERY embedded font is declared under a UNIQUE family name (canonical + ' FX',
+    with the font's name table rewritten to match) so it can never collide with an
+    INSTALLED font of the same name — that collision makes Word for Mac flicker the
+    text out on zoom/scroll (hit by the bespoke 'Microsoft Sans Serif', which IS
+    installed)."""
+    if base in reg:
+        return
+    bold, ital = _weight_of(basefont)
+    wk = _weight_key(bold, ital)
+    if len(buf) > 200 and _has_unicode_cmap(buf) and not _is_standard_font(base):
+        # BESPOKE font → embed the PDF's OWN glyphs (exact), renamed unique. Not for
+        # standard fonts: their PDF subset often ships a re-encoded cmap Word can't
+        # map (text blanks), so those use the full SYSTEM font below.
+        canon = _font_internal_name(buf) or _clean_font(basefont)
+        family = canon + " FX"
+        renamed = _rename_family(buf, family, bold, ital)
+        key, ob = _obfuscate(renamed)
+        embedded.setdefault(family, {}).setdefault(wk, (key, ob, True))
+        reg[base] = {"family": family, "embedded": True,
+                     "bold": bold, "ital": ital, "subst": False}
+    else:
+        # Standard font, subset without usable cmap, or no bytes → embed the matching
+        # SYSTEM font (full, Unicode cmap), renamed unique, as a weight variant.
+        sysbuf = _system_font_bytes(basefont)
+        if sysbuf and _has_unicode_cmap(sysbuf):
+            canon = _font_internal_name(sysbuf) or _clean_font(basefont)
+            family = canon + " FX"
+            renamed = _rename_family(sysbuf, family, bold, ital)
+            key, ob = _obfuscate(renamed)
+            embedded.setdefault(family, {}).setdefault(wk, (key, ob, False))
+            reg[base] = {"family": family, "embedded": True,
+                         "bold": bold, "ital": ital, "subst": True}
+        else:
+            reg[base] = {"family": _clean_font(basefont), "embedded": False}
 
 
 def _span_style(span: dict, font_reg: dict) -> tuple:
