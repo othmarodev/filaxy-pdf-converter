@@ -156,9 +156,15 @@ def test_per_page_orientation():
 
 def test_justified_paragraph():
     _, xml = _convert(_make_justified_pdf())
-    assert 'w:jc w:val="both"' in xml, \
-        "regressed: a justified multi-line paragraph is no longer justified"
-    print("PASS  justified paragraph reproduced (jc=both)")
+    # Justification is reproduced by char_space (w:spacing in the run) filling each
+    # line to its source footprint — NOT by jc="both". On a single-line frame
+    # jc="both" justifies to the PADDED frame width, over-stretching the text and
+    # (on Word for Mac) rendering letters doubled/overlapping, so we never emit it.
+    assert 'w:spacing w:val="' in xml, \
+        "regressed: justified paragraph no longer filled to its footprint (char_space)"
+    assert 'w:jc w:val="both"' not in xml, \
+        "regressed: jc=both reintroduced (over-justifies framed lines → doubled glyphs)"
+    print("PASS  justified paragraph reproduced (char_space fill, no jc=both)")
 
 
 def main() -> int:

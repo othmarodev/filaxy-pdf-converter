@@ -423,7 +423,12 @@ def _line_para(line: dict, mat, font_reg: dict, align: str = "center") -> str:
         jc = "center"
     else:                                       # left / justify: left edge at x0
         fx = max(0.0, x0)
-        jc = "both" if align == "justify" else "left"
+        # Always LEFT — never jc="both". The frame is `target+30` wide (padding so
+        # the line never wraps), so jc="both" would justify the text to that PADDED
+        # width, over-stretching past the source footprint; on Word for Mac that
+        # over-justification renders letters doubled/overlapping. The justified look
+        # is reproduced by `char_space` (w:spacing) filling exactly `target` instead.
+        jc = "left"
     # Absolute x/y from the page edge — NO w:xAlign/w:yAlign (an alignment attribute
     # overrides the absolute offset in some renderers and scrambles the layout).
     frame = (f'<w:framePr w:w="{_tw(w)}" w:hSpace="0" w:vSpace="0" '
@@ -478,6 +483,17 @@ def _page_background_png(doc, page) -> bytes:
         data = doc.xref_stream(xref)
         if data:
             doc.update_stream(xref, re.sub(rb"BT\b.*?\bET", b"", data, flags=re.S))
+    # FreeText annotations (e.g. an address typed onto the PDF in Preview, in
+    # macOS's .SFNS font) are NOT in the page content streams, so BT…ET stripping
+    # misses them — yet get_text() DOES return their text into the editable overlay.
+    # Rendering them in the background too would double the text. Drop FreeText
+    # annotations here; graphic annotations (stamps, signatures) are left intact.
+    for annot in list(page.annots() or []):
+        try:
+            if annot.type[1] == "FreeText":
+                page.delete_annot(annot)
+        except Exception:
+            pass
     pix = page.get_pixmap(matrix=fitz.Matrix(BG_DPI / 72, BG_DPI / 72), alpha=False)
     return pix.tobytes("png")
 
