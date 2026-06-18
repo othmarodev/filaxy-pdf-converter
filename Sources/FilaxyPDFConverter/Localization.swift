@@ -41,6 +41,7 @@ enum L10n {
     case convertAnother
     case showInFinder
     case openInWord
+    case compareWithOriginal
     case recentsTitle
     case recentsClear
     case pagesElapsed   // takes args, see helper below
@@ -122,6 +123,7 @@ enum L10n {
         case .convertAnother:      return es ? "Convertir otro" : "Convert another"
         case .showInFinder:        return es ? "Mostrar en Finder" : "Show in Finder"
         case .openInWord:          return es ? "Abrir en Word" : "Open in Word"
+        case .compareWithOriginal: return es ? "Comparar con el original" : "Compare with original"
         case .recentsTitle:        return es ? "Recientes" : "Recent"
         case .recentsClear:        return es ? "Limpiar" : "Clear"
         case .pagesElapsed:        return es ? "página(s)" : "page(s)"

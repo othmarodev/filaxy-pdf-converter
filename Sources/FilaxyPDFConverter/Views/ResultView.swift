@@ -52,6 +52,11 @@ struct ResultView: View {
                     Label(settings.t(.showInFinder), systemImage: "folder")
                 }
                 Button {
+                    model.compareWithOriginal()
+                } label: {
+                    Label(settings.t(.compareWithOriginal), systemImage: "rectangle.split.2x1")
+                }
+                Button {
                     model.openOutputInWord()
                 } label: {
                     Label(settings.t(.openInWord), systemImage: "arrow.up.forward.app")

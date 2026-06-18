@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import PDFKit
 
 @MainActor
 final class ConversionViewModel: ObservableObject {
@@ -100,5 +101,40 @@ final class ConversionViewModel: ObservableObject {
 
     func reveal(_ path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+
+    // MARK: - Compare with original (side by side)
+    private var compareWindow: NSWindow?
+
+    /// Put the SOURCE PDF on the left half of the screen (in our own window, which
+    /// we can position) and open the converted .docx in Word on the right — so the
+    /// user can eyeball the conversion against the original, the way you verify it.
+    func compareWithOriginal() {
+        guard case let .done(result) = phase else { return }
+        showOriginalPDF(URL(fileURLWithPath: result.input))
+        openInWord(result.output)
+    }
+
+    private func showOriginalPDF(_ url: URL) {
+        guard let doc = PDFDocument(url: url) else { reveal(url.path); return }
+        guard let screen = NSScreen.main else { return }
+        let vf = screen.visibleFrame
+        let left = NSRect(x: vf.minX, y: vf.minY, width: floor(vf.width / 2), height: vf.height)
+
+        let pdfView = PDFView(frame: left)
+        pdfView.document = doc
+        pdfView.autoScales = true
+        pdfView.displayMode = .singlePageContinuous
+
+        let win = compareWindow ?? NSWindow(
+            contentRect: left,
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered, defer: false)
+        win.title = url.lastPathComponent + " — " + settings.t(.appTitle)
+        win.contentView = pdfView
+        win.setFrame(left, display: true)
+        win.isReleasedWhenClosed = false
+        win.makeKeyAndOrderFront(nil)
+        compareWindow = win
     }
 }
