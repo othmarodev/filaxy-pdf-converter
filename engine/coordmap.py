@@ -74,6 +74,34 @@ def _clean_font(name: str) -> str:
 # embedded font from the PDF and embed it in the DOCX as an obfuscated font part
 # (ECMA-376 §17.8.1). Word then renders with the exact original glyphs.
 
+def _rename_family(font_bytes: bytes, family: str, bold: bool, ital: bool) -> bytes:
+    """Return the font re-serialised with its NAME table rewritten to `family`
+    (keeping the weight as the subfamily). Used to give an embedded system font a
+    UNIQUE name so it can't collide with the installed font of the same name —
+    the collision is what makes Word for Mac flicker the text on zoom/scroll."""
+    try:
+        from fontTools.ttLib import TTFont
+        f = TTFont(io.BytesIO(font_bytes), fontNumber=0)
+        sub = ("Bold Italic" if (bold and ital) else "Bold" if bold
+               else "Italic" if ital else "Regular")
+        full = family if sub == "Regular" else f"{family} {sub}"
+        ps = f"{family}-{sub}".replace(" ", "")
+        for rec in f["name"].names:
+            nid = rec.nameID
+            try:
+                if nid in (1, 16):   rec.string = family
+                elif nid in (2, 17): rec.string = sub
+                elif nid == 4:       rec.string = full
+                elif nid == 6:       rec.string = ps
+            except Exception:
+                pass
+        out = io.BytesIO()
+        f.save(out)
+        return out.getvalue()
+    except Exception:
+        return font_bytes   # fall back to the original bytes if rewrite fails
+
+
 def _obfuscate(font_bytes: bytes):
     """Return (fontKey, obfuscated_bytes). The first 32 bytes are XOR'd with the
     GUID-derived key (key bytes used in reverse), per the OOXML embedded-font
@@ -238,12 +266,18 @@ def _build_font_registry(doc):
                 # its real family name as a weight variant — full font → subsetted=False.
                 sysbuf = _system_font_bytes(basefont)
                 if sysbuf and _has_unicode_cmap(sysbuf):
-                    # Declare the family under the embedded font's OWN internal name
-                    # (e.g. Tahoma → "Tahoma", not the "Arial" fallback) so the
-                    # declared name ALWAYS matches the embedded bytes — otherwise
-                    # Word can't resolve it and shows □ tofu.
-                    family = _font_internal_name(sysbuf) or _clean_font(basefont)
-                    key, ob = _obfuscate(sysbuf)
+                    # Embed under a UNIQUE family name (canonical + " FX"), renaming
+                    # the font internally so the declared name == its internal name.
+                    # Why unique and not "Arial": Word for Mac FLICKERS (text blinks
+                    # out on zoom/scroll) when an embedded font shares its name with
+                    # an INSTALLED font (our embedded Arial vs the OS's Arial) — it
+                    # can't decide which to use. A unique name forces Word to use the
+                    # embedded copy only → stable. Glyphs are still the system font,
+                    # so it looks identical.
+                    canon = _font_internal_name(sysbuf) or _clean_font(basefont)
+                    family = canon + " FX"
+                    renamed = _rename_family(sysbuf, family, bold, ital)
+                    key, ob = _obfuscate(renamed)
                     embedded.setdefault(family, {}).setdefault(wk, (key, ob, False))
                     reg[base] = {"family": family, "embedded": True,
                                  "bold": bold, "ital": ital, "subst": True}
